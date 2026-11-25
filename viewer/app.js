@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import URDFLoader from 'urdf-loader';
-import { watchHand } from './hand-target.js';
+import { watchHand, watchIK, ikMessage } from './hand-target.js';
 
 const status = document.querySelector('#status');
 const controlsPanel = document.querySelector('#joint-controls');
@@ -58,7 +58,10 @@ try {
   target.renderOrder = 10;
   scene.add(target);
   const handStatus = document.querySelector('#hand-status');
+  let ikMode = false;
+  let ikState = null;
   watchHand((hand, enabled) => {
+    if (ikMode) return;
     target.visible = hand !== null;
     if (hand) {
       // The SO-101 base uses Z up. Keep the target in a fixed-depth plane.
@@ -67,6 +70,28 @@ try {
     handStatus.hidden = !enabled;
     handStatus.textContent = hand ? 'Palm target · Tracking' : 'Palm target · Show one hand';
     render();
+  });
+  function showIK() {
+    if (!ikMode || !robot) return;
+    controlsPanel.disabled = true;
+    target.visible = Boolean(ikState?.target);
+    if (ikState?.target) target.position.fromArray(ikState.target);
+    if (ikState) {
+      for (const [name, angle] of Object.entries(ikState.joints)) {
+        robot.setJointValue(name, angle);
+        const input = document.getElementById(name);
+        input.value = THREE.MathUtils.radToDeg(angle);
+        input.closest('.joint').querySelector('output').value = `${Number(input.value).toFixed(1)}°`;
+      }
+    }
+    handStatus.hidden = false;
+    handStatus.textContent = ikMessage(ikState);
+    render();
+  }
+  watchIK((state, enabled) => {
+    ikMode = enabled;
+    ikState = state;
+    showIK();
   });
   const resize = new ResizeObserver(() => {
     const { width, height } = host.getBoundingClientRect();
@@ -83,9 +108,10 @@ try {
   manager.onError = url => fail(`Could not load model asset: ${url}. Check the files and reload.`);
   manager.onLoad = () => {
     if (failed || !robot) return;
-    controlsPanel.disabled = false;
+    controlsPanel.disabled = ikMode;
     viewReset.disabled = false;
     status.textContent = 'Official SO-101 follower · 6 movable joints';
+    showIK();
     render();
   };
   const loader = new URDFLoader(manager);

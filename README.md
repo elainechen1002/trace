@@ -173,3 +173,27 @@ To see the live coordinates and pinch state in the terminal, run
 `python live_leap.py`. The Windows tracking bridge uses the LeapC DLL from the
 default Ultraleap SDK installation. Both demos read hand tracking only and send
 no motor commands.
+
+### Live inverse kinematics preview
+
+Run `python viewer.py --ik` on Windows, then open the local viewer address.
+Show one hand and pinch to anchor the virtual gripper to your palm. Move your
+hand in three dimensions and release the pinch to pause at the current pose.
+The simulation uses the follower URDF joint limits and runs until the server
+is stopped. If the 3D model assets are unavailable, the viewer draws a joint
+schematic. This mode sends no commands to the physical arm.
+
+### Experimental hardware IK (Windows)
+
+`python arm_follow_ik.py --port COM3` checks the five arm joints while leaving
+torque off. Adding `--enable-motion` starts a local control page. A centered,
+stationary arm is required, and motion is enabled from the page before an
+open hand followed by a pinch can move the arm. The gripper motor is untouched.
+Release the pinch to pause or use **Stop hand control** to end the session.
+The arm can remain powered and holding its pose after the session. Support it
+before removing motor power.
+
+The first hardware IK trial stopped after the measured position of a joint
+exceeded the test envelope. The hardware mode still needs a supervised retest.
+The simulated IK preview is available for testing Leap input without moving
+the arm.

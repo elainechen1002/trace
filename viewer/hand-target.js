@@ -12,18 +12,33 @@ export function mapHand(sample) {
 }
 
 export function watchHand(update) {
+  watchFeed('/hand', (sample, enabled) => update(mapHand(sample), enabled));
+}
+
+export function watchIK(update) {
+  watchFeed('/ik', update);
+}
+
+export function ikMessage(state) {
+  if (!state?.tracking) return 'Show one hand to the Leap Motion';
+  if (!state.active) return 'Pinch to guide the virtual gripper';
+  if (state.error_mm > 4) return 'Target is outside the reachable pose';
+  return 'Following your palm · Release to pause';
+}
+
+function watchFeed(path, update) {
   let enabled = false;
 
   async function poll() {
     try {
-      const response = await fetch('/hand', {
+      const response = await fetch(path, {
         cache: 'no-store',
         signal: AbortSignal.timeout(600),
       });
       if (response.status === 404 && !enabled) return;
       if (!response.ok) throw new Error('Hand feed unavailable');
       enabled = true;
-      update(mapHand(await response.json()), enabled);
+      update(await response.json(), enabled);
     } catch {
       update(null, enabled);
     }

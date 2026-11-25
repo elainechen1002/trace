@@ -30,13 +30,17 @@ def open_hand_stream():
         process.stdout.close()
 
 
-def hand_samples(lines):
+def hand_samples(lines, *, pinch_release_threshold=0.8):
+    pinched = False
     for line in lines:
         if line.strip() == "MISSING":
+            pinched = False
             yield None
         else:
             x, y, z, pinch_strength = map(float, line.split(","))
-            yield HandSample(x, y, z, pinch_strength >= 0.8)
+            threshold = pinch_release_threshold if pinched else 0.8
+            pinched = pinch_strength >= threshold
+            yield HandSample(x, y, z, pinched)
 
 
 def main():

@@ -11,20 +11,28 @@
     p { line-height: 1.5; }
     #plane { position: relative; aspect-ratio: 6 / 5; overflow: hidden; border: 1px solid #bdc8c1; border-radius: 8px; background: repeating-linear-gradient(0deg, transparent 0 calc(20% - 1px), #d6ddd7 calc(20% - 1px) 20%), repeating-linear-gradient(90deg, #edf0eb 0 calc(20% - 1px), #d6ddd7 calc(20% - 1px) 20%); }
     #dot { position: absolute; width: 18px; height: 18px; transform: translate(-50%, -50%); border-radius: 50%; background: #ce4824; border: 2px solid white; }
+    #arm { width: 100%; height: 100%; position: absolute; inset: 0; }
     #hand-state { color: #43574d; }
   </style>
 </head>
 <body>
-  <h1>Palm target</h1>
-  <p>Move one hand over the Leap Motion to steer the dot. This preview shows the target plane while the 3D model files are unavailable.</p>
-  <div id="plane" aria-label="Hand target plane"><div id="dot" hidden></div></div>
+  <h1 id="heading">Palm target</h1>
+  <p id="instructions">Move one hand over the Leap Motion to steer the dot.</p>
+  <div id="plane">
+    <div id="dot" hidden></div>
+    <canvas id="arm" width="840" height="700" aria-label="Simulated SO-101 joints and hand target" hidden></canvas>
+  </div>
   <p id="hand-state" role="status">Connecting to Leap Motion…</p>
   <script type="module">
-    import { watchHand } from './hand-target.js';
+    import { watchHand, watchIK, ikMessage } from './hand-target.js';
 
     const dot = document.querySelector('#dot');
     const state = document.querySelector('#hand-state');
+    const arm = document.querySelector('#arm');
+    const context = arm.getContext('2d');
+    let ikMode = false;
     watchHand((hand, enabled) => {
+      if (ikMode) return;
       dot.hidden = !hand;
       const message = hand ? 'Tracking' : enabled ? 'Show one hand to the Leap Motion' : 'Waiting for the hand feed';
       if (state.textContent !== message) state.textContent = message;
@@ -32,6 +40,44 @@
         dot.style.left = `${50 + 45 * hand.right / 0.24}%`;
         dot.style.top = `${95 - 90 * (hand.up - 0.02) / 0.4}%`;
       }
+    });
+
+    function project([x, y, z]) {
+      return [420 + 720 * (x + 0.42 * y), 520 - 720 * (z - 0.2 * y)];
+    }
+
+    function point(position, radius, color) {
+      context.beginPath();
+      context.arc(...project(position), radius, 0, Math.PI * 2);
+      context.fillStyle = color;
+      context.fill();
+    }
+
+    watchIK((sample, enabled) => {
+      if (!enabled) return;
+      if (!ikMode) {
+        ikMode = true;
+        document.querySelector('#heading').textContent = 'SO-101 inverse kinematics';
+        document.querySelector('#instructions').textContent =
+          'Pinch and move your hand to guide the simulated gripper. Release to pause.';
+        dot.hidden = true;
+        arm.hidden = false;
+      }
+      const message = ikMessage(sample);
+      if (state.textContent !== message) state.textContent = message;
+      context.clearRect(0, 0, arm.width, arm.height);
+      if (!sample) return;
+      context.beginPath();
+      context.moveTo(...project(sample.points[0]));
+      for (const joint of sample.points.slice(1)) context.lineTo(...project(joint));
+      context.strokeStyle = '#264337';
+      context.lineWidth = 10;
+      context.lineJoin = 'round';
+      context.lineCap = 'round';
+      context.stroke();
+      for (const joint of sample.points.slice(0, -1)) point(joint, 8, '#376750');
+      point(sample.points.at(-1), 10, '#22749c');
+      if (sample.target) point(sample.target, 7, '#ce4824');
     });
   </script>
 </body>
