@@ -142,3 +142,15 @@ After this viewer works, the next milestone is a mouse-controlled target, follow
 by IK. Keep sensing → mapping → IK → motor control separate. No camera, Leap,
 motor connection, stop/enable controls, or physical safety system is implemented
 here; those safety prerequisites remain required before physical operation.
+
+## Physical arm connection check
+
+With the assembled SO-101 follower connected by USB and externally powered,
+`so101_check.py` uses LeRobot 0.7 to ping the six expected motor IDs. On
+November 25, 2026, all six replied at 1,000,000 baud and reported model 777.
+This check reads motor identity without commanding motion. Calibration and
+Leap Motion tracking have yet to be verified.
+
+Run the check from the project folder in the LeRobot Python environment.
+Use `--port` to specify your controller if its serial port differs from the
+default for this Mac.
