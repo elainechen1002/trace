@@ -117,7 +117,7 @@ scripts and models load locally; no CDN or network connection is needed.
 ### Added files
 
 - `viewer.py`: serves only the viewer folder, bound to this computer's loopback
-  address. It neither imports hand input nor opens hardware connections.
+  address. The optional Windows hand-tracking mode is documented below.
 - `viewer/index.html` and `viewer/style.css`: the page, labels, and responsive layout.
 - `viewer/app.js`: loads the URDF with `urdf-loader`, draws it with Three.js, and
   converts degree slider values to radians. Joint relationships and mesh placement
@@ -154,3 +154,22 @@ Leap Motion tracking have yet to be verified.
 Run the check from the project folder in the LeRobot Python environment.
 Use `--port` to specify your controller if its serial port differs from the
 default for this Mac.
+
+## Live Leap Motion palm target (Windows)
+
+Install and start Ultraleap Tracking. With the viewer dependencies installed
+as described above, run this from the project folder:
+
+```powershell
+python viewer.py --hand
+```
+
+Open `http://127.0.0.1:8000` and move one hand above the sensor. The orange dot
+uses the palm's horizontal and vertical position at a fixed depth. It disappears
+when tracking is lost. If the model or its browser dependencies are unavailable,
+the server shows the target on a flat grid.
+
+To see the live coordinates and pinch state in the terminal, run
+`python live_leap.py`. The Windows tracking bridge uses the LeapC DLL from the
+default Ultraleap SDK installation. Both demos read hand tracking only and send
+no motor commands.

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import URDFLoader from 'urdf-loader';
+import { watchHand } from './hand-target.js';
 
 const status = document.querySelector('#status');
 const controlsPanel = document.querySelector('#joint-controls');
@@ -49,6 +50,24 @@ try {
   grid.rotation.x = Math.PI / 2;
   grid.position.z = -0.005;
   scene.add(grid);
+  const target = new THREE.Mesh(
+    new THREE.SphereGeometry(0.013, 24, 16),
+    new THREE.MeshBasicMaterial({ color: '#e15a31', depthTest: false, depthWrite: false }),
+  );
+  target.visible = false;
+  target.renderOrder = 10;
+  scene.add(target);
+  const handStatus = document.querySelector('#hand-status');
+  watchHand((hand, enabled) => {
+    target.visible = hand !== null;
+    if (hand) {
+      // The SO-101 base uses Z up. Keep the target in a fixed-depth plane.
+      target.position.set(hand.right, -0.20, hand.up);
+    }
+    handStatus.hidden = !enabled;
+    handStatus.textContent = hand ? 'Palm target · Tracking' : 'Palm target · Show one hand';
+    render();
+  });
   const resize = new ResizeObserver(() => {
     const { width, height } = host.getBoundingClientRect();
     camera.aspect = width / height;

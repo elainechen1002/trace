@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trace · Palm target</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { max-width: 720px; margin: 0 auto; padding: 28px 20px; font: 16px system-ui, sans-serif; color: #202c34; background: #f4f5f2; }
+    h1 { margin: 0; font-size: 32px; }
+    p { line-height: 1.5; }
+    #plane { position: relative; aspect-ratio: 6 / 5; overflow: hidden; border: 1px solid #bdc8c1; border-radius: 8px; background: repeating-linear-gradient(0deg, transparent 0 calc(20% - 1px), #d6ddd7 calc(20% - 1px) 20%), repeating-linear-gradient(90deg, #edf0eb 0 calc(20% - 1px), #d6ddd7 calc(20% - 1px) 20%); }
+    #dot { position: absolute; width: 18px; height: 18px; transform: translate(-50%, -50%); border-radius: 50%; background: #ce4824; border: 2px solid white; }
+    #hand-state { color: #43574d; }
+  </style>
+</head>
+<body>
+  <h1>Palm target</h1>
+  <p>Move one hand over the Leap Motion to steer the dot. This preview shows the target plane while the 3D model files are unavailable.</p>
+  <div id="plane" aria-label="Hand target plane"><div id="dot" hidden></div></div>
+  <p id="hand-state" role="status">Connecting to Leap Motion…</p>
+  <script type="module">
+    import { watchHand } from './hand-target.js';
+
+    const dot = document.querySelector('#dot');
+    const state = document.querySelector('#hand-state');
+    watchHand((hand, enabled) => {
+      dot.hidden = !hand;
+      const message = hand ? 'Tracking' : enabled ? 'Show one hand to the Leap Motion' : 'Waiting for the hand feed';
+      if (state.textContent !== message) state.textContent = message;
+      if (hand) {
+        dot.style.left = `${50 + 45 * hand.right / 0.24}%`;
+        dot.style.top = `${95 - 90 * (hand.up - 0.02) / 0.4}%`;
+      }
+    });
+  </script>
+</body>
+</html>
