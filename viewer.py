@@ -80,7 +80,7 @@ class ViewerHandler(SimpleHTTPRequestHandler):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=8000)
-    parser.add_argument("--hand", action="store_true", help="Show a live Leap Motion target on Windows.")
+    parser.add_argument("--hand", action="store_true", help="Show a live Leap Motion target.")
     parser.add_argument("--ik", action="store_true", help="Simulate gripper position from the Leap Motion.")
     args = parser.parse_args()
     use_hand = args.hand or args.ik
@@ -93,8 +93,8 @@ def main():
     ))
     if not viewer_ready and not use_hand:
         parser.exit(1, "First run: npm --prefix viewer ci\n")
-    if use_hand and sys.platform != "win32":
-        parser.error("--hand and --ik use the Windows Ultraleap SDK")
+    if use_hand and sys.platform not in ("darwin", "win32"):
+        parser.error("--hand and --ik require macOS or Windows")
     with ExitStack() as stack:
         hand_feed = None
         if use_hand:
