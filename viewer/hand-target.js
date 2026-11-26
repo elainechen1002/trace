@@ -21,9 +21,9 @@ export function watchIK(update) {
 
 export function ikMessage(state) {
   if (!state?.tracking) return 'Show one hand to the Leap Motion';
-  if (!state.active) return 'Pinch to guide the virtual gripper';
+  if (!state.active) return 'Show an open hand to guide the virtual arm';
   if (state.error_mm > 4) return 'Target is outside the reachable pose';
-  return 'Following your palm · Release to pause';
+  return 'Following your palm · Pinch to close the gripper';
 }
 
 function watchFeed(path, update) {

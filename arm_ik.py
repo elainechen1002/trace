@@ -105,9 +105,11 @@ class ArmModel:
         tool = add(point, apply(rotation, self.tool_offset))
         return points + [tool], axes
 
-    def solve(self, target, seed, joint_window=None):
+    def solve(self, target, seed, joint_window=None, joint_bounds=None):
         angles = list(seed)
         bounds = [(joint.lower, joint.upper) for joint in self.joints]
+        if joint_bounds is not None:
+            bounds = joint_bounds
         if joint_window is not None:
             bounds = [(max(lower, -joint_window), min(upper, joint_window)) for lower, upper in bounds]
         best_angles = angles[:]
@@ -121,6 +123,8 @@ class ArmModel:
             if remaining <= 0.002:
                 break
             columns = [cross(axis, subtract(points[-1], pivot)) for axis, pivot in zip(axes, points[1:])]
+            columns = [column if lo < hi else (0, 0, 0)
+                       for column, (lo, hi) in zip(columns, bounds)]
             rows = tuple(zip(*columns))
             normal = [
                 [dot(a, b) + (0.018 ** 2 if i == j else 0) for j, b in enumerate(rows)]
@@ -133,13 +137,20 @@ class ArmModel:
         return best_angles, best_error
 
 
+def palm_displacement(palm, origin):
+    """Map millimetres of hand travel to metres in the arm's coordinate frame."""
+    dx, dy, dz = subtract(palm, origin)
+    return (dx / 1000, -dz / 1000, dy / 1000)
+
+
 class PalmIK:
-    """Clutch the simulated gripper position to palm displacement while pinched."""
+    """Track one palm continuously; pinching operates the jaw independently."""
 
     def __init__(self, model):
         self.model = model
         self.angles = [0.0] * len(ARM_JOINTS)
         self.anchor = None
+        self.joint_bounds = None
         self.latest = self.state()
 
     def state(self, target=None, residual=None, tracking=False):
@@ -154,7 +165,7 @@ class PalmIK:
         }
 
     def accept(self, sample):
-        if sample is None or not sample.pinched:
+        if sample is None:
             self.anchor = None
             self.latest = self.state(tracking=sample is not None)
             return
@@ -166,7 +177,10 @@ class PalmIK:
             points, _ = self.model.forward(self.angles)
             self.anchor = (palm, points[-1])
         initial_palm, initial_tool = self.anchor
+        # The neutral tool points along base +X. Facing forward with the
+        # arm, right is -Y, forward is +X and upward is +Z.
         dx, dy, dz = subtract(palm, initial_palm)
-        target = add(initial_tool, (0.0005 * dx, -0.0005 * dz, 0.0005 * dy))
-        self.angles, residual = self.model.solve(target, self.angles)
+        target = add(initial_tool, (-dz / 1000, -dx / 1000, dy / 1000))
+        self.angles, residual = self.model.solve(target, self.angles, joint_bounds=self.joint_bounds)
         self.latest = self.state(target, residual, tracking=True)
+        self.latest["joints"]["gripper"] = 0.0 if sample.pinched else 1.5
