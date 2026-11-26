@@ -177,8 +177,7 @@ no motor commands.
 ### Live inverse kinematics preview
 
 Run `python viewer.py --ik` on Windows, then open the local viewer address.
-Show one hand and pinch to anchor the virtual gripper to your palm. Move your
-hand in three dimensions and release the pinch to pause at the current pose.
+Show one hand to guide the virtual arm. Pinch to close its gripper and release to open it. Remove your hand to pause.
 The simulation uses the follower URDF joint limits and runs until the server
 is stopped. If the 3D model assets are unavailable, the viewer draws a joint
 schematic. This mode sends no commands to the physical arm.
@@ -197,3 +196,41 @@ The first hardware IK trial stopped after the measured position of a joint
 exceeded the test envelope. The hardware mode still needs a supervised retest.
 The simulated IK preview is available for testing Leap input without moving
 the arm.
+
+### Running Trace on this Mac
+
+From Terminal, use the Python environment that already has LeRobot 0.7 and pyserial:
+
+```sh
+cd ~/Documents/so101-hand-control
+source ~/.venvs/lerobot/bin/activate
+python live_leap.py --seconds 5
+python viewer.py --ik
+```
+
+Open the viewer address printed in Terminal. The Mac reads one hand through the
+installed Ultraleap Hand Tracking app. The reader builds with Apple's command-line
+C compiler when it starts. Move your palm and pinch to test the virtual arm, then press
+Ctrl+C in Terminal to close the viewer.
+
+For the physical arm, run `python arm_follow_ik.py` for a read-only preflight.
+Trace discovers the SO-101 USB adapter automatically. If multiple adapters are
+connected, pass `--port /dev/cu.usbmodem…` with the actual device name.
+The arm and jaw must be stationary and within their configured limits.
+With the base secured and the workspace clear, run
+`python arm_follow_ik.py --enable-motion` and open the printed address.
+Keep fingers clear of the gripper. Click Enable and show one open hand.
+Sideways movement turns the base along a level arc. At ordinary reaches, 6 cm
+of sideways hand travel requests a 6 cm arc. Within 5 cm of the base axis,
+the turn is scaled down. Height and depth guide the IK target at 1:1 scale,
+with a 3 mm tolerance for hand jitter. Joint limits bound the available travel. Pinch to close the gripper and
+release to open it. Remove your hand to hold, then show an open hand to resume
+from the measured pose. Stop ends control with the motors holding.
+The mapping assumes the sensor and operator face the same direction as the
+arm's forward reach. Support the arm before disconnecting power.
+
+During physical tests, motor 2 (shoulder lift) repeatedly fell behind its target
+and triggered a stop. A passing stationary preflight does not verify lift under load.
+
+For the single-joint shoulder-pan test use `python arm_follow.py`. Its
+`--enable-motion` mode releases shoulder torque at the end of the test.
