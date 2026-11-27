@@ -10,6 +10,10 @@ class FakeBus:
         self.writes = []
         self.positions = dict.fromkeys(range(1, 7), 2048)
 
+    def sync_write_register(self, joints, name, values):
+        for joint, value in zip(joints, values):
+            self.write_register_with_error(joint, name, value)
+
     def read_register_with_error(self, joint, name):
         registers = {"torque_limit": 500, "model": 777, "mode": 0, "torque_enable": 0, "present_speed": 0,
                      "min_position_limit": 0, "max_position_limit": 4095,
@@ -89,6 +93,23 @@ class MacMotorTests(unittest.TestCase):
             yield "2058,2048,2048,2048,2048,2048"
         self.run_ik(samples())
         self.assertIn((1, "goal_position", 2058), self.bus.writes)
+
+    def test_new_hand_target_supersedes_lag_at_watchdog_deadline(self):
+        now = [0.0]
+        def samples():
+            for t in (0.0, 0.1, 0.2, 0.3):
+                now[0] = t
+                yield "2048,1700,2048,2048,2048,2048"
+            # The previous lift goal was never reached. The operator now
+            # requests movement on the other side of the measured position.
+            now[0] = 1.4
+            for _ in range(7):
+                yield "2048,2100,2048,2048,2048,2048"
+                self.bus.positions[2] = self.bus.writes[-1][2]
+                now[0] += 0.1
+        with patch("mac_motors.monotonic", side_effect=lambda: now[0]):
+            self.run_ik(samples())
+        self.assertGreater(self.bus.positions[2], 2048)
 
     def test_shoulder_stall_at_lead_limit_ends_control(self):
         self.bus.positions[2] = 2363

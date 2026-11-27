@@ -220,10 +220,11 @@ The arm and jaw must be stationary and within their configured limits.
 With the base secured and the workspace clear, run
 `python arm_follow_ik.py --enable-motion` and open the printed address.
 Keep fingers clear of the gripper. Click Enable and show one open hand.
-Sideways movement turns the base along a level arc. At ordinary reaches, 6 cm
-of sideways hand travel requests a 6 cm arc. Within 5 cm of the base axis,
-the turn is scaled down. Height and depth guide the IK target at 1:1 scale,
-with a 3 mm tolerance for hand jitter. Joint limits bound the available travel. Pinch to close the gripper and
+The Mac controller seeds the preview's inverse kinematics solver from the measured
+arm pose. It sends the same solver's joint angles as calibrated encoder targets.
+Palm travel maps to tool travel at 1:1 scale within reach. The motor bridge steps
+toward the targets using encoder feedback and sends each update in a single
+group write. Pinch to close the gripper and
 release to open it. Remove your hand to hold, then show an open hand to resume
 from the measured pose. Stop ends control with the motors holding.
 The mapping assumes the sensor and operator face the same direction as the

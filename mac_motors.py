@@ -205,6 +205,7 @@ def run(bus, *, ik, travel, seconds, motion):
                                 and previous_shoulder is not None and measured[1] >= previous_shoulder)
             if ik:
                 previous_shoulder = measured[1]
+            next_goals = {}
             for joint, actual in zip(joints, measured):
                 if ik:
                     low, high = limits[joint]
@@ -212,7 +213,12 @@ def run(bus, *, ik, travel, seconds, motion):
                         raise ValueError(f"Motor {joint} at {actual} outside configured limits {low}–{high}.")
                     # A transient shift from home is fine. A joint that persistently
                     # cannot hold its commanded pose needs the operator's attention.
-                    if abs(actual - goals[joint]) > 20:
+                    target = clamp(targets[joint - 1], low, high)
+                    # Time only a lag that the current hand target still asks
+                    # us to close. On reversal the bounded ramp retires the
+                    # previous goal over the next updates.
+                    same_direction = (target - actual) * (goals[joint] - actual) > 0
+                    if abs(actual - goals[joint]) > 20 and abs(target - actual) > 20 and same_direction:
                         now = monotonic()
                         # A moving servo can trail a moving goal by a constant
                         # distance. Time lack of measured progress toward it.
@@ -231,9 +237,7 @@ def run(bus, *, ik, travel, seconds, motion):
                 elif abs(actual - home[joint]) > travel + 8:
                     raise ValueError(f"Motor {joint} exceeded the test range: start {home[joint]}, "
                                      f"last goal {goals[joint]}, measured {actual}.")
-                if ik:
-                    target = clamp(targets[joint - 1], *limits[joint])
-                else:
+                if not ik:
                     target = pinch_position + round(clamp((x - origin) / 50, -1, 1) * travel)
                     target = clamp(target, home[joint] - travel, home[joint] + travel)
                 step = 36 if joint == 6 else (10 if ik else 16)
@@ -268,8 +272,13 @@ def run(bus, *, ik, travel, seconds, motion):
                 if waiting_for_lift and joint in (1, 3, 4, 5):
                     continue
                 if goal != previous:
-                    write(bus, joint, "goal_position", goal)
-                    goals[joint] = goal
+                    next_goals[joint] = goal
+            if next_goals:
+                if ik:
+                    bus.sync_write_register(list(next_goals), "goal_position", list(next_goals.values()))
+                else:
+                    write(bus, 1, "goal_position", next_goals[1])
+                goals.update(next_goals)
             if ik and monotonic() - last_report >= 1:
                 print(f"Palm: target {targets}, commanded {list(goals.values())}, measured {measured}",
                       file=sys.stderr, flush=True)

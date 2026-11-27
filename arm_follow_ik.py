@@ -14,7 +14,6 @@ from threading import Event, Thread
 from time import monotonic
 
 from arm_ik import ARM_JOINTS, ArmModel, PalmIK, add, palm_displacement, subtract
-from hand_input import HandSample
 from live_leap import hand_samples, open_hand_stream
 
 TICKS_PER_RADIAN = 4096 / math.tau
@@ -242,31 +241,9 @@ def follow(model, motors, armed, stop):
                         lower = max(joint.lower, (low - center) / MAC_TICKS_PER_RADIAN)
                         upper = min(joint.upper, (high - center) / MAC_TICKS_PER_RADIAN)
                         simulation.joint_bounds.append((min(lower, angle), max(upper, angle)))
-                    anchor_x, anchor_z = hand.x_mm, hand.z_mm
-                    anchor_pan = simulation.angles[0]
-                    pan_bounds = simulation.joint_bounds[0]
-                    points, _ = model.forward(simulation.angles)
-                    radius = max(math.dist(points[-1][:2], points[1][:2]), 0.05)
-                    # Only the lateral command turns the base. Solve reach and
-                    # height in the plane of this pose, with wrist roll fixed.
-                    for i in (0, 4):
-                        simulation.joint_bounds[i] = (simulation.angles[i], simulation.angles[i])
-                    stable_y, stable_z = hand.y_mm, hand.z_mm
-                # Keep sideways travel on a level arc around joint 1.
-                # Small vertical/depth fluctuations should not bend the arm.
-                if abs(hand.y_mm - stable_y) > 3:
-                    stable_y = hand.y_mm
-                if abs(hand.z_mm - stable_z) > 3:
-                    stable_z = hand.z_mm
-                depth = stable_z - anchor_z
-                simulation.accept(HandSample(anchor_x - depth * math.sin(anchor_pan), stable_y,
-                                             anchor_z + depth * math.cos(anchor_pan), hand.pinched))
-                angles_out = simulation.angles.copy()
-                pan = anchor_pan + (hand.x_mm - anchor_x) / (1000 * radius)
-                lower, upper = pan_bounds
-                angles_out[0] = max(lower, min(upper, pan))
-                ticks = [round(center + angle * MAC_TICKS_PER_RADIAN)
-                         for center, angle in zip(centers, angles_out)]
+                simulation.accept(hand)
+                ticks = [round(center + simulation.latest["joints"][name] * MAC_TICKS_PER_RADIAN)
+                         for name, center in zip(ARM_JOINTS, centers)]
                 _, closed, opened = pose[5]
                 # The calibrated closed position is the requested pinch endpoint.
                 inset = max(1, round((opened - closed) * 0.02))

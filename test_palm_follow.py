@@ -44,23 +44,36 @@ class Gestures(unittest.TestCase):
         self.assertEqual(pinch[5], POSE[5][1])
         self.assertEqual(right, release)
 
-    def test_depth_does_not_steer_base_or_twist_wrist(self):
-        _, _, right, reach, back = replay("0,200,0,0\n35,200,0,0\n35,230,-40,0\n35,200,0,0\n")
-        poses = [list(map(int, row.split(","))) for row in (right, reach, back)]
-        for index in (0, 4):
-            self.assertEqual(len({pose[index] for pose in poses}), 1)
-        self.assertNotEqual(poses[0][1:4], poses[1][1:4])
+    def test_motor_targets_match_preview_angles_from_recorded_pose(self):
+        frames = [(0, 200, 0), (35, 200, 0), (35, 230, -40), (-30, 215, 20)]
+        _, *commands = replay("".join(f"{x},{y},{z},0\n" for x, y, z in frames))
+        preview = PalmIK(ArmModel())
+        centers = [(lo + hi) / 2 for _, lo, hi in POSE[:5]]
+        ticks_per_rad = 4095 / math.tau
+        preview.angles = [(raw - center) / ticks_per_rad
+                          for (raw, _, _), center in zip(POSE, centers)]
+        for (x, y, z), command in zip(frames, commands):
+            preview.accept(SimpleNamespace(x_mm=x, y_mm=y, z_mm=z, pinched=False))
+            for raw, center, angle in zip(map(int, command.split(",")), centers, preview.angles):
+                self.assertLessEqual(abs(raw - (center + angle * ticks_per_rad)), 0.5)
 
-    def test_level_sweep_from_last_trial_only_turns_base(self):
-        raw = (2220, 1885, 2710, 1383, 2123, 2154)
-        pose = [(tick, low, high) for tick, (_, low, high) in zip(raw, POSE)]
-        with patch(__name__ + ".POSE", pose):
-            _, home, right, left = replay("0,200,0,0\n60,198,2,0\n-60,202,-2,0\n")
-        home, right, left = [list(map(int, line.split(","))) for line in (home, right, left)]
-        self.assertLess(left[0], home[0])
-        self.assertGreater(right[0], home[0])
-        self.assertEqual(right[1:], home[1:])
-        self.assertEqual(left[1:], home[1:])
+    def test_simulated_servos_reach_targets_via_group_writes(self):
+        from mac_motors import run
+        from test_mac_motors import FakeBus
+
+        class FollowingBus(FakeBus):
+            def sync_write_register(self, joints, name, values):
+                packets.append((name, tuple(joints)))
+                self.positions.update(zip(joints, values))
+
+        bus = FollowingBus()
+        packets = []
+        bus.positions.update({j: row[0] for j, row in enumerate(POSE, 1)})
+        _, home, target = replay("0,200,0,0\n30,225,-10,1\n")
+        with patch("mac_motors.commands", return_value=iter([home] + [target] * 100)):
+            run(bus, ik=True, travel=None, seconds=None, motion=True)
+        self.assertTrue(any(name == "goal_position" and len(ids) > 1 for name, ids in packets))
+        self.assertEqual(list(bus.positions.values()), list(map(int, target.split(","))))
 
     def test_one_to_one_translation_on_all_axes(self):
         origin = (10, 200, 25)
